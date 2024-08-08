@@ -1,0 +1,11 @@
+[package]
+name = "twotris"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+bevy = "0.14.0"
+tracing = "0.1.40"
+tracing-subscriber = "0.3.18"
+rand = "0.8.5"
+rand_chacha = "0.3.1"
