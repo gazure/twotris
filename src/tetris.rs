@@ -397,7 +397,11 @@ fn handle_timed_movement(
     }
 }
 
-fn game_over(mut commands: Commands, asset_server: Res<AssetServer>,tetromino: Query<Entity, With<ControlledTetromino>>) {
+fn game_over(
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    tetromino: Query<Entity, With<ControlledTetromino>>,
+) {
     for entity_id in tetromino.iter() {
         commands.entity(entity_id).despawn();
     }
@@ -416,8 +420,8 @@ fn game_over(mut commands: Commands, asset_server: Res<AssetServer>,tetromino: Q
             top: Val::Px(300.0),
             left: Val::Px(600.0),
             ..default()
-        }))
-    );
+        }),
+    ));
 }
 
 fn reset(
