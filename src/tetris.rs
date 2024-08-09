@@ -16,12 +16,15 @@ enum TetrisState {
     GameOver,
 }
 
+#[derive(Debug, Component)]
+struct GameOver;
+
 #[derive(Debug, Resource)]
 struct RandomSource(rand_chacha::ChaCha8Rng);
 
 impl Default for RandomSource {
     fn default() -> Self {
-        RandomSource(rand_chacha::ChaCha8Rng::seed_from_u64(123456789))
+        RandomSource(rand_chacha::ChaCha8Rng::from_entropy())
     }
 }
 
@@ -52,6 +55,10 @@ impl Grid {
         self.grid[y][x] = val;
     }
 
+    pub fn clear(&mut self) {
+        self.grid = [[false; GRID_WIDTH]; GRID_HEIGHT];
+    }
+
     fn set_tetromino_values(&mut self, tetromino: &ControlledTetromino, val: bool) {
         for (y, row) in tetromino.current_structure().iter().enumerate() {
             for (x, cell) in row.iter().enumerate() {
@@ -73,13 +80,11 @@ impl Grid {
     pub fn is_tetromino_space_open(&self, tetromino: &ControlledTetromino) -> bool {
         for (y, row) in tetromino.current_structure().iter().enumerate() {
             for (x, cell) in row.iter().enumerate() {
-                if *cell {
-                    if tetromino.top_left.0 + x >= GRID_WIDTH
-                        || tetromino.top_left.1 + y >= GRID_HEIGHT
-                        || self.grid[tetromino.top_left.1 + y][tetromino.top_left.0 + x]
-                    {
-                        return false;
-                    }
+                if *cell && tetromino.top_left.0 + x >= GRID_WIDTH
+                    || tetromino.top_left.1 + y >= GRID_HEIGHT
+                    || self.grid[tetromino.top_left.1 + y][tetromino.top_left.0 + x]
+                {
+                    return false;
                 }
             }
         }
@@ -142,9 +147,7 @@ impl Grid {
                 cleared_rows += 1;
             } else {
                 new_grid[new_row] = *row;
-                if new_row > 0 {
-                    new_row -= 1;
-                }
+                new_row = new_row.saturating_sub(1);
             }
         }
         self.grid = new_grid;
@@ -155,7 +158,7 @@ impl Grid {
 impl Default for Grid {
     fn default() -> Self {
         Grid {
-            grid: [[false; 10]; 16],
+            grid: [[false; GRID_WIDTH]; GRID_HEIGHT],
         }
     }
 }
@@ -166,7 +169,7 @@ impl Display for Grid {
             for cell in row.iter() {
                 write!(f, "{}", if *cell { "X" } else { "." })?;
             }
-            write!(f, "\n")?;
+            writeln!(f)?;
         }
         Ok(())
     }
@@ -337,13 +340,11 @@ fn handle_input(
         grid.set_tetromino(tetromino.as_ref());
     }
 
-    if input.just_pressed(KeyCode::ArrowDown) {
-        if !grid.is_tetromino_at_bottom(tetromino.as_ref()) {
-            info!("Moving tetromino down");
-            grid.unset_tetromino(tetromino.as_ref());
-            tetromino.top_left.1 += 1;
-            grid.set_tetromino(tetromino.as_ref());
-        }
+    if input.just_pressed(KeyCode::ArrowDown) && !grid.is_tetromino_at_bottom(tetromino.as_ref()) {
+        info!("Moving tetromino down");
+        grid.unset_tetromino(tetromino.as_ref());
+        tetromino.top_left.1 += 1;
+        grid.set_tetromino(tetromino.as_ref());
     }
 
     if input.just_pressed(KeyCode::Space) {
@@ -364,13 +365,11 @@ fn handle_timed_movement(
     input: Res<ButtonInput<KeyCode>>,
     time: Res<Time>,
     mut random_source: ResMut<RandomSource>,
-    mut grid: Query<&mut Grid>,
+    mut grid: Query<(&mut Grid, &mut Text)>,
     mut tetromino: Query<(Entity, &mut ControlledTetromino)>,
-    mut text: Query<&mut Text>,
     mut next_state: ResMut<NextState<TetrisState>>,
 ) {
-    let mut grid = grid.single_mut();
-    let mut text = text.single_mut();
+    let (mut grid, mut text) = grid.single_mut();
     next_state.set(TetrisState::InGame);
     for (tetromino_id, mut tetromino) in tetromino.iter_mut() {
         tetromino.timer.tick(time.delta());
@@ -398,8 +397,12 @@ fn handle_timed_movement(
     }
 }
 
-fn game_over(mut commands: Commands, asset_server: Res<AssetServer>) {
-    commands.spawn(
+fn game_over(mut commands: Commands, asset_server: Res<AssetServer>,tetromino: Query<Entity, With<ControlledTetromino>>) {
+    for entity_id in tetromino.iter() {
+        commands.entity(entity_id).despawn();
+    }
+    commands.spawn((
+        GameOver,
         TextBundle::from_section(
             "Game Over".to_string(),
             TextStyle {
@@ -413,10 +416,33 @@ fn game_over(mut commands: Commands, asset_server: Res<AssetServer>) {
             top: Val::Px(300.0),
             left: Val::Px(600.0),
             ..default()
-        })
+        }))
     );
 }
 
+fn reset(
+    mut next_state: ResMut<NextState<TetrisState>>,
+    mut commands: Commands,
+    input: Res<ButtonInput<KeyCode>>,
+    mut grid: Query<(&mut Grid, &mut Text)>,
+    gameover: Query<Entity, With<GameOver>>,
+) {
+    if input.just_pressed(KeyCode::KeyR) {
+        next_state.set(TetrisState::InGame);
+        for entity_id in gameover.iter() {
+            commands.entity(entity_id).despawn();
+        }
+        let (mut grid, mut text) = grid.single_mut();
+        let mut rng = RandomSource::default();
+        let tetromino = ControlledTetromino::new(TetrominoType::random(&mut rng));
+        commands.remove_resource::<RandomSource>();
+        commands.insert_resource(RandomSource::default());
+        grid.clear();
+        grid.set_tetromino(&tetromino);
+        commands.spawn(tetromino);
+        text.sections[0].value = grid.to_string();
+    }
+}
 
 pub struct TetrisPlugin;
 
@@ -425,7 +451,11 @@ impl Plugin for TetrisPlugin {
         app.insert_resource(RandomSource::default())
             .init_state::<TetrisState>()
             .add_systems(Startup, (setup, spawn_tetromino).chain())
-            .add_systems(Update, (handle_timed_movement, handle_input).run_if(in_state(TetrisState::InGame)))
-            .add_systems(Update, (game_over,).run_if(in_state(TetrisState::GameOver)));
+            .add_systems(
+                Update,
+                (handle_timed_movement, handle_input).run_if(in_state(TetrisState::InGame)),
+            )
+            .add_systems(OnEnter(TetrisState::GameOver), (game_over,))
+            .add_systems(Update, (reset,).run_if(in_state(TetrisState::GameOver)));
     }
 }
