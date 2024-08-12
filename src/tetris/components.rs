@@ -1,41 +1,17 @@
-#![allow(unused_variables)]
-#![allow(dead_code)]
-
 use bevy::prelude::*;
-use rand::{Rng, SeedableRng};
 use std::fmt::{Display, Formatter, Result as fmtResult};
-use tracing::info;
+use super::RandomSource;
+
 
 const GRID_WIDTH: usize = 10;
 const GRID_HEIGHT: usize = 16;
 
-#[derive(States, Default, Debug, Clone, PartialEq, Eq, Hash)]
-enum TetrisState {
-    #[default]
-    InGame,
-    GameOver,
-}
+#[derive(Debug, Component)]
+pub struct GameOver;
+
 
 #[derive(Debug, Component)]
-struct GameOver;
-
-#[derive(Debug, Resource)]
-struct RandomSource(rand_chacha::ChaCha8Rng);
-
-impl Default for RandomSource {
-    fn default() -> Self {
-        RandomSource(rand_chacha::ChaCha8Rng::from_entropy())
-    }
-}
-
-impl RandomSource {
-    pub fn next(&mut self, min: u32, max: u32) -> u32 {
-        self.0.gen_range(min..max)
-    }
-}
-
-#[derive(Debug, Component)]
-struct Grid {
+pub struct Grid {
     grid: [[bool; GRID_WIDTH]; GRID_HEIGHT],
 }
 
@@ -93,8 +69,14 @@ impl Grid {
 
     pub fn is_tetromino_blocked_left(&self, tetromino: &ControlledTetromino) -> bool {
         for (y, row) in tetromino.current_structure().iter().enumerate() {
-            let left = tetromino.top_left.0;
-            if left == 0 || (left > 0 && row[0] && self.grid[tetromino.top_left.1 + y][left - 1]) {
+            let mut left = tetromino.top_left.0;
+            for (i, v) in row.iter().enumerate() {
+                if *v {
+                    left = i + tetromino.top_left.0;
+                    break;
+                }
+            }
+            if left == 0 || (left > 0 && self.grid[tetromino.top_left.1 + y][left - 1]) {
                 return true;
             }
         }
@@ -103,10 +85,16 @@ impl Grid {
 
     pub fn is_tetromino_blocked_right(&self, tetromino: &ControlledTetromino) -> bool {
         for (y, row) in tetromino.current_structure().iter().enumerate() {
-            let right = tetromino.top_left.0 + row.len() - 1;
+            let mut right = row.len() - 1;
+            for (i, v) in row.iter().enumerate().rev() {
+                if *v {
+                    right = i;
+                    break;
+                }
+            }
+            let right = right + tetromino.top_left.0;
             if right == GRID_WIDTH - 1
                 || (right < GRID_WIDTH - 1
-                    && row[row.len() - 1]
                     && self.grid[tetromino.top_left.1 + y][right + 1])
             {
                 return true;
@@ -118,11 +106,10 @@ impl Grid {
     pub fn is_tetromino_at_bottom(&self, tetromino: &ControlledTetromino) -> bool {
         let mut checked_cols = vec![];
         for (y, row) in tetromino.current_structure().iter().enumerate().rev() {
-            info!("{}, {:?}", y, row);
             for (x, cell) in row.iter().enumerate() {
                 if *cell && !checked_cols.contains(&x) {
                     checked_cols.push(x);
-                    info!(
+                    debug!(
                         "Checking cell at ({}, {})",
                         tetromino.top_left.0 + x,
                         tetromino.top_left.1 + y
@@ -174,6 +161,7 @@ impl Display for Grid {
         Ok(())
     }
 }
+
 
 pub enum TetrominoType {
     I,
@@ -250,7 +238,20 @@ impl TetrominoType {
 }
 
 #[derive(Debug, Component)]
-struct ControlledTetromino {
+pub struct GridTetromino(Entity);
+
+impl GridTetromino {
+    pub fn new(grid: Entity) -> Self {
+        Self(grid)
+    }
+
+    pub fn get(&self) -> Entity {
+        self.0
+    }
+}
+
+#[derive(Debug, Component)]
+pub struct ControlledTetromino {
     pub structure: Vec<Vec<Vec<bool>>>,
     pub rotation: usize,
     pub top_left: (usize, usize),
@@ -258,8 +259,12 @@ struct ControlledTetromino {
 }
 
 impl ControlledTetromino {
-    pub fn new(tetromino_type: TetrominoType) -> Self {
-        ControlledTetromino {
+    pub fn new(rng: &mut RandomSource) -> Self {
+        Self::new_with_tetromino_type(TetrominoType::random(rng))
+    }
+
+    pub fn new_with_tetromino_type(tetromino_type: TetrominoType) -> Self {
+        Self {
             structure: tetromino_type.structure_with_rotations(),
             rotation: 0,
             top_left: ((GRID_WIDTH / 2) - 1, 0),
@@ -277,189 +282,5 @@ impl ControlledTetromino {
 
     pub fn rotate(&mut self) {
         self.rotation = (self.rotation + 1) % self.structure.len();
-    }
-}
-
-fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
-    let grid = Grid::default();
-    let grid_string = grid.to_string();
-    commands.spawn(Camera2dBundle::default());
-    commands.spawn((
-        grid,
-        TextBundle::from_section(
-            grid_string.to_string(),
-            TextStyle {
-                font: asset_server.load("fonts/JetBrainsMono-Bold.ttf"),
-                font_size: 36.0,
-                color: Color::WHITE,
-            },
-        )
-        .with_style(Style {
-            position_type: PositionType::Absolute,
-            top: Val::Px(12.0),
-            left: Val::Px(400.0),
-            ..default()
-        }),
-    ));
-}
-
-fn spawn_tetromino(
-    mut commands: Commands,
-    mut random_source: ResMut<RandomSource>,
-    mut grid: Query<(&mut Grid, &mut Text)>,
-) {
-    let (mut grid, mut text) = grid.single_mut();
-
-    let tetromino = ControlledTetromino::new(TetrominoType::random(&mut random_source));
-
-    info!("Spawning a tetromino");
-    grid.set_tetromino(&tetromino);
-    text.sections[0].value = grid.to_string();
-    commands.spawn((tetromino,));
-}
-
-fn handle_input(
-    input: Res<ButtonInput<KeyCode>>,
-    mut grid: Query<(&mut Grid, &mut Text)>,
-    mut tetromino: Query<&mut ControlledTetromino>,
-) {
-    let (mut grid, mut text) = grid.single_mut();
-    let mut tetromino = tetromino.iter_mut().next().unwrap();
-
-    if input.just_pressed(KeyCode::ArrowLeft) && !grid.is_tetromino_blocked_left(&tetromino) {
-        info!("Moving tetromino left");
-        grid.unset_tetromino(tetromino.as_ref());
-        tetromino.top_left.0 -= 1;
-        grid.set_tetromino(tetromino.as_ref());
-    }
-
-    if input.just_pressed(KeyCode::ArrowRight) && !grid.is_tetromino_blocked_right(&tetromino) {
-        info!("Moving tetromino right");
-        grid.unset_tetromino(tetromino.as_ref());
-        tetromino.top_left.0 += 1;
-        grid.set_tetromino(tetromino.as_ref());
-    }
-
-    if input.just_pressed(KeyCode::ArrowDown) && !grid.is_tetromino_at_bottom(tetromino.as_ref()) {
-        info!("Moving tetromino down");
-        grid.unset_tetromino(tetromino.as_ref());
-        tetromino.top_left.1 += 1;
-        grid.set_tetromino(tetromino.as_ref());
-    }
-
-    if input.just_pressed(KeyCode::Space) {
-        info!("Rotating tetromino");
-        let old_rotation = tetromino.rotation;
-        grid.unset_tetromino(tetromino.as_ref());
-        tetromino.rotate();
-        if !grid.is_tetromino_space_open(&tetromino) {
-            tetromino.rotation = old_rotation;
-        }
-        grid.set_tetromino(tetromino.as_ref());
-    }
-    text.sections[0].value = grid.to_string();
-}
-
-fn handle_timed_movement(
-    mut commands: Commands,
-    input: Res<ButtonInput<KeyCode>>,
-    time: Res<Time>,
-    mut random_source: ResMut<RandomSource>,
-    mut grid: Query<(&mut Grid, &mut Text)>,
-    mut tetromino: Query<(Entity, &mut ControlledTetromino)>,
-    mut next_state: ResMut<NextState<TetrisState>>,
-) {
-    let (mut grid, mut text) = grid.single_mut();
-    next_state.set(TetrisState::InGame);
-    for (tetromino_id, mut tetromino) in tetromino.iter_mut() {
-        tetromino.timer.tick(time.delta());
-
-        if tetromino.timer.finished() {
-            if grid.is_tetromino_at_bottom(tetromino.as_ref()) {
-                info!("Tetromino at bottom, despawning and spawning a new one");
-                grid.clear_full_grid_rows();
-                commands.get_entity(tetromino_id).unwrap().despawn();
-                let tetromino = ControlledTetromino::new(TetrominoType::random(&mut random_source));
-                if grid.is_tetromino_space_open(&tetromino) {
-                    grid.set_tetromino(&tetromino);
-                    commands.spawn(tetromino);
-                } else {
-                    next_state.set(TetrisState::GameOver);
-                }
-            } else {
-                info!("Moving tetromino down");
-                grid.unset_tetromino(tetromino.as_ref());
-                tetromino.top_left.1 += 1;
-                grid.set_tetromino(tetromino.as_ref());
-            }
-            text.sections[0].value = grid.to_string();
-        }
-    }
-}
-
-fn game_over(
-    mut commands: Commands,
-    asset_server: Res<AssetServer>,
-    tetromino: Query<Entity, With<ControlledTetromino>>,
-) {
-    for entity_id in tetromino.iter() {
-        commands.entity(entity_id).despawn();
-    }
-    commands.spawn((
-        GameOver,
-        TextBundle::from_section(
-            "Game Over".to_string(),
-            TextStyle {
-                font: asset_server.load("fonts/JetBrainsMono-Bold.ttf"),
-                font_size: 72.0,
-                color: Color::WHITE,
-            },
-        )
-        .with_style(Style {
-            position_type: PositionType::Absolute,
-            top: Val::Px(300.0),
-            left: Val::Px(600.0),
-            ..default()
-        }),
-    ));
-}
-
-fn reset(
-    mut next_state: ResMut<NextState<TetrisState>>,
-    mut commands: Commands,
-    input: Res<ButtonInput<KeyCode>>,
-    mut grid: Query<(&mut Grid, &mut Text)>,
-    gameover: Query<Entity, With<GameOver>>,
-) {
-    if input.just_pressed(KeyCode::KeyR) {
-        next_state.set(TetrisState::InGame);
-        for entity_id in gameover.iter() {
-            commands.entity(entity_id).despawn();
-        }
-        let (mut grid, mut text) = grid.single_mut();
-        let mut rng = RandomSource::default();
-        let tetromino = ControlledTetromino::new(TetrominoType::random(&mut rng));
-        commands.remove_resource::<RandomSource>();
-        commands.insert_resource(RandomSource::default());
-        grid.clear();
-        grid.set_tetromino(&tetromino);
-        commands.spawn(tetromino);
-        text.sections[0].value = grid.to_string();
-    }
-}
-
-pub struct TetrisPlugin;
-
-impl Plugin for TetrisPlugin {
-    fn build(&self, app: &mut App) {
-        app.insert_resource(RandomSource::default())
-            .init_state::<TetrisState>()
-            .add_systems(Startup, (setup, spawn_tetromino).chain())
-            .add_systems(
-                Update,
-                (handle_timed_movement, handle_input).run_if(in_state(TetrisState::InGame)),
-            )
-            .add_systems(OnEnter(TetrisState::GameOver), (game_over,))
-            .add_systems(Update, (reset,).run_if(in_state(TetrisState::GameOver)));
     }
 }
