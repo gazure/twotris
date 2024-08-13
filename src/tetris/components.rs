@@ -19,10 +19,6 @@ pub struct Grid {
 }
 
 impl Grid {
-    pub fn new() -> Self {
-        Self::default()
-    }
-
     pub fn set(&mut self, x: usize, y: usize, val: bool) {
         if x >= GRID_WIDTH || y >= GRID_HEIGHT {
             error!(
@@ -156,7 +152,7 @@ impl Default for Grid {
 impl Display for Grid {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmtResult {
         for row in self.grid.iter() {
-            for cell in row.iter() {
+            for cell in row {
                 write!(f, "{}", if *cell { "X" } else { "." })?;
             }
             writeln!(f)?;
@@ -213,18 +209,6 @@ impl TetrominoType {
         }
     }
 
-    pub fn structure(&self) -> Vec<Vec<bool>> {
-        match self {
-            TetrominoType::I => vec![vec![true, true, true, true]],
-            TetrominoType::O => vec![vec![true, true], vec![true, true]],
-            TetrominoType::T => vec![vec![false, true, false], vec![true, true, true]],
-            TetrominoType::S => vec![vec![false, true, true], vec![true, true, false]],
-            TetrominoType::Z => vec![vec![true, true, false], vec![false, true, true]],
-            TetrominoType::J => vec![vec![true, false, false], vec![true, true, true]],
-            TetrominoType::L => vec![vec![false, false, true], vec![true, true, true]],
-        }
-    }
-
     fn random(rng: &mut RandomSource) -> Self {
         let idx = rng.next(0, 7);
         match idx {
@@ -234,8 +218,7 @@ impl TetrominoType {
             3 => TetrominoType::S,
             4 => TetrominoType::Z,
             5 => TetrominoType::J,
-            6 => TetrominoType::L,
-            _ => TetrominoType::O,
+            _ => TetrominoType::L,
         }
     }
 }
@@ -277,10 +260,6 @@ impl ControlledTetromino {
 
     pub fn current_structure(&self) -> &Vec<Vec<bool>> {
         &self.structure[self.rotation]
-    }
-
-    pub fn next_structure(&self) -> &Vec<Vec<bool>> {
-        &self.structure[(self.rotation + 1) % self.structure.len()]
     }
 
     pub fn rotate(&mut self) {

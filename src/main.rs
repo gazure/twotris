@@ -1,3 +1,7 @@
+#![deny(clippy::pedantic)]
+#![allow(clippy::module_name_repetitions)]
+#![allow(clippy::needless_pass_by_value)]
+
 use bevy::prelude::*;
 #[cfg(not(target_arch = "wasm32"))]
 use bevy::input::common_conditions::input_toggle_active;

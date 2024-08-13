@@ -41,9 +41,9 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
 fn spawn_tetromino(
     mut commands: Commands,
     mut random_source: ResMut<RandomSource>,
-    mut grid: Query<(Entity, &mut Grid, &mut Text)>,
+    mut grid_query: Query<(Entity, &mut Grid, &mut Text)>,
 ) {
-    for (entity, mut grid, mut text) in grid.iter_mut() {
+    for (entity, mut grid, mut text) in &mut grid_query {
         debug!("Spawning a tetromino");
         let tetromino = ControlledTetromino::new(random_source.as_mut());
         grid.set_tetromino(&tetromino);
