@@ -1,7 +1,6 @@
+use super::RandomSource;
 use bevy::prelude::*;
 use std::fmt::{Display, Formatter, Result as fmtResult};
-use super::RandomSource;
-
 
 const GRID_WIDTH: usize = 10;
 const GRID_HEIGHT: usize = 16;
@@ -11,7 +10,6 @@ pub struct GameOver;
 
 #[derive(Debug, Component)]
 pub struct Focus;
-
 
 #[derive(Debug, Component)]
 pub struct Grid {
@@ -55,9 +53,10 @@ impl Grid {
     pub fn is_tetromino_space_open(&self, tetromino: &ControlledTetromino) -> bool {
         for (y, row) in tetromino.current_structure().iter().enumerate() {
             for (x, cell) in row.iter().enumerate() {
-                if *cell && (tetromino.top_left.0 + x >= GRID_WIDTH
-                    || tetromino.top_left.1 + y >= GRID_HEIGHT
-                    || self.grid[tetromino.top_left.1 + y][tetromino.top_left.0 + x])
+                if *cell
+                    && (tetromino.top_left.0 + x >= GRID_WIDTH
+                        || tetromino.top_left.1 + y >= GRID_HEIGHT
+                        || self.grid[tetromino.top_left.1 + y][tetromino.top_left.0 + x])
                 {
                     return false;
                 }
@@ -93,8 +92,7 @@ impl Grid {
             }
             let right = right + tetromino.top_left.0;
             if right == GRID_WIDTH - 1
-                || (right < GRID_WIDTH - 1
-                    && self.grid[tetromino.top_left.1 + y][right + 1])
+                || (right < GRID_WIDTH - 1 && self.grid[tetromino.top_left.1 + y][right + 1])
             {
                 return true;
             }
@@ -160,7 +158,6 @@ impl Display for Grid {
         Ok(())
     }
 }
-
 
 pub enum TetrominoType {
     I,

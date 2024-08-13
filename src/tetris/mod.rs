@@ -1,7 +1,5 @@
-
-
-mod plugin;
 mod components;
+mod plugin;
 
-pub use plugin::TetrisPlugin;
 pub use plugin::RandomSource;
+pub use plugin::TetrisPlugin;
