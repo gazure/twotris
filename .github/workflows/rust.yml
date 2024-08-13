@@ -15,6 +15,10 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+    - name: Install Package
+      uses: ConorMacBride/install-package@v1.1.0
+      with:
+        apt: alsa-sys
     - uses: actions/checkout@v4
     - name: Build
       run: cargo build --verbose
