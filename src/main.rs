@@ -1,18 +1,26 @@
-use bevy::{input::common_conditions::input_toggle_active, prelude::*};
+use bevy::prelude::*;
+#[cfg(not(target_arch = "wasm32"))]
+use bevy::input::common_conditions::input_toggle_active;
+#[cfg(not(target_arch = "wasm32"))]
 use bevy_inspector_egui::quick::WorldInspectorPlugin;
-use bevy::diagnostic;
+#[cfg(not(target_arch = "wasm32"))]
 use iyes_perf_ui::PerfUiPlugin;
+#[cfg(not(target_arch = "wasm32"))]
+use bevy::diagnostic;
 
 mod tetris;
 
 fn main() {
-    App::new()
-        .add_plugins(DefaultPlugins)
-        .add_plugins(tetris::TetrisPlugin)
-        .add_plugins(WorldInspectorPlugin::default().run_if(input_toggle_active(false, KeyCode::Backquote)))
-        .add_plugins(diagnostic::FrameTimeDiagnosticsPlugin::default())
-        .add_plugins(diagnostic::EntityCountDiagnosticsPlugin::default())
-        .add_plugins(diagnostic::SystemInformationDiagnosticsPlugin::default())
-        .add_plugins(PerfUiPlugin::default())
-        .run();
+    let mut app = App::new();
+    app.add_plugins(DefaultPlugins)
+        .add_plugins(tetris::TetrisPlugin);
+
+    #[cfg(not(target_arch = "wasm32"))]
+    app.add_plugins(WorldInspectorPlugin::default().run_if(input_toggle_active(false, KeyCode::Backquote)))
+        .add_plugins(diagnostic::FrameTimeDiagnosticsPlugin)
+        .add_plugins(diagnostic::EntityCountDiagnosticsPlugin)
+        .add_plugins(diagnostic::SystemInformationDiagnosticsPlugin)
+        .add_plugins(PerfUiPlugin);
+
+    app.run();
 }

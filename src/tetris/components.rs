@@ -9,6 +9,9 @@ const GRID_HEIGHT: usize = 16;
 #[derive(Debug, Component)]
 pub struct GameOver;
 
+#[derive(Debug, Component)]
+pub struct Focus;
+
 
 #[derive(Debug, Component)]
 pub struct Grid {
