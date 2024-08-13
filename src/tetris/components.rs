@@ -151,7 +151,7 @@ impl Default for Grid {
 
 impl Display for Grid {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmtResult {
-        for row in self.grid.iter() {
+        for row in &self.grid {
             for cell in row {
                 write!(f, "{}", if *cell { "X" } else { "." })?;
             }

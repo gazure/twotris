@@ -60,11 +60,11 @@ fn swap_focus(
 ) {
     if input.just_pressed(KeyCode::KeyF) {
         debug!("Swapping focus");
-        for (entity, mut text) in focus_grid.iter_mut() {
+        for (entity, mut text) in &mut focus_grid {
             commands.entity(entity).remove::<Focus>();
             text.sections[0].style.color = NON_FOCUS_COLOR;
         }
-        for (non_focus_entity, _, mut text) in non_focus_grid.iter_mut() {
+        for (non_focus_entity, _, mut text) in &mut non_focus_grid {
             commands.entity(non_focus_entity).insert(Focus);
             text.sections[0].style.color = Color::WHITE;
         }
@@ -76,8 +76,8 @@ fn handle_input(
     mut grid: Query<(Entity, &mut Grid, &mut Text), With<Focus>>,
     mut tetromino: Query<(&GridTetromino, &mut ControlledTetromino)>,
 ) {
-    for (entity, mut grid, mut text) in grid.iter_mut() {
-        for (grid_owner, mut tetromino) in tetromino.iter_mut() {
+    for (entity, mut grid, mut text) in &mut grid {
+        for (grid_owner, mut tetromino) in &mut tetromino {
             if grid_owner.get() != entity {
                 continue;
             }
@@ -132,8 +132,8 @@ fn handle_timed_movement(
     mut tetromino: Query<(Entity, &GridTetromino, &mut ControlledTetromino)>,
     mut next_state: ResMut<NextState<TetrisState>>,
 ) {
-    for (entity, mut grid, mut text) in grid.iter_mut() {
-        for (tetromino_id, grid_owner, mut tetromino) in tetromino.iter_mut() {
+    for (entity, mut grid, mut text) in &mut grid {
+        for (tetromino_id, grid_owner, mut tetromino) in &mut tetromino {
             if grid_owner.get() != entity {
                 continue;
             }
@@ -242,7 +242,7 @@ fn reset_grid(
             }
         }
     } else {
-        for (mut grid, mut text) in grid_text.iter_mut() {
+        for (mut grid, mut text) in &mut grid_text {
             grid.clear();
             text.sections[0].value = grid.to_string();
         }

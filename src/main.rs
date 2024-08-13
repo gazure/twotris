@@ -1,6 +1,7 @@
 #![deny(clippy::pedantic)]
 #![allow(clippy::module_name_repetitions)]
 #![allow(clippy::needless_pass_by_value)]
+#![allow(clippy::cast_precision_loss)]
 
 use bevy::prelude::*;
 #[cfg(not(target_arch = "wasm32"))]
