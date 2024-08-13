@@ -8,6 +8,8 @@ use iyes_perf_ui::prelude::PerfUiCompleteBundle;
 use rand::{Rng, SeedableRng};
 use tracing::debug;
 
+const NON_FOCUS_COLOR: Color = Color::linear_rgba(1.0, 0.1, 0.1, 0.9);
+
 #[derive(States, Default, Debug, Clone, PartialEq, Eq, Hash)]
 enum TetrisState {
     #[default]
@@ -53,16 +55,18 @@ fn spawn_tetromino(
 fn swap_focus(
     input: Res<ButtonInput<KeyCode>>,
     mut commands: Commands,
-    focus_grid: Query<Entity, With<Focus>>,
-    non_focus_grid: Query<(Entity, &Grid), Without<Focus>>,
+    mut focus_grid: Query<(Entity, &mut Text), With<Focus>>,
+    mut non_focus_grid: Query<(Entity, &Grid, &mut Text), Without<Focus>>,
 ) {
     if input.just_pressed(KeyCode::KeyF) {
         debug!("Swapping focus");
-        for entity in focus_grid.iter() {
+        for (entity, mut text) in focus_grid.iter_mut() {
             commands.entity(entity).remove::<Focus>();
+            text.sections[0].style.color = NON_FOCUS_COLOR;
         }
-        for (non_focus_entity, _) in non_focus_grid.iter() {
+        for (non_focus_entity, _, mut text) in non_focus_grid.iter_mut() {
             commands.entity(non_focus_entity).insert(Focus);
+            text.sections[0].style.color = Color::WHITE;
         }
     }
 }
@@ -209,6 +213,11 @@ fn reset_grid(
 ) {
     if grid_text.iter().len() == 0 {
         for i in 0..2 {
+            let text_color = if i == 0 {
+                Color::WHITE
+            } else {
+                NON_FOCUS_COLOR
+            };
             let grid = Grid::default();
             let grid_string = grid.to_string();
             let text_bundle = TextBundle::from_section(
@@ -216,7 +225,7 @@ fn reset_grid(
                 TextStyle {
                     font: asset_server.load("fonts/JetBrainsMono-Bold.ttf"),
                     font_size: 36.0,
-                    color: Color::WHITE,
+                    color: text_color,
                 },
             )
             .with_style(Style {
@@ -254,7 +263,6 @@ impl Plugin for TetrisPlugin {
             .add_systems(
                 Update,
                 (swap_focus, handle_timed_movement, handle_input)
-                    .chain()
                     .run_if(in_state(TetrisState::InGame)),
             )
             .add_systems(OnEnter(TetrisState::GameOver), (game_over,))

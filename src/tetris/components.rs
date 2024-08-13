@@ -59,9 +59,9 @@ impl Grid {
     pub fn is_tetromino_space_open(&self, tetromino: &ControlledTetromino) -> bool {
         for (y, row) in tetromino.current_structure().iter().enumerate() {
             for (x, cell) in row.iter().enumerate() {
-                if *cell && tetromino.top_left.0 + x >= GRID_WIDTH
+                if *cell && (tetromino.top_left.0 + x >= GRID_WIDTH
                     || tetromino.top_left.1 + y >= GRID_HEIGHT
-                    || self.grid[tetromino.top_left.1 + y][tetromino.top_left.0 + x]
+                    || self.grid[tetromino.top_left.1 + y][tetromino.top_left.0 + x])
                 {
                     return false;
                 }
