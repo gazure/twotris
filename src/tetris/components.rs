@@ -28,6 +28,17 @@ impl Grid {
         self.grid[y][x] = val;
     }
 
+    pub fn get(&self, x: usize, y: usize) -> bool {
+        if x >= GRID_WIDTH || y >= GRID_HEIGHT {
+            error!(
+                "Attempted to get a cell outside of the grid: ({}, {})",
+                x, y
+            );
+            return false;
+        }
+        self.grid[y][x]
+    }
+
     pub fn clear(&mut self) {
         self.grid = [[false; GRID_WIDTH]; GRID_HEIGHT];
     }
@@ -261,5 +272,37 @@ impl ControlledTetromino {
 
     pub fn rotate(&mut self) {
         self.rotation = (self.rotation + 1) % self.structure.len();
+    }
+}
+
+#[cfg(test)]
+mod test {
+
+    use super::*;
+
+    #[test]
+    fn test_grid_is_space_open() {
+        let mut grid = Grid::default();
+        let tetromino = ControlledTetromino {
+            structure: vec![vec![vec![true]]],
+            rotation: 0,
+            top_left: (0, 0),
+            timer: Timer::from_seconds(1.0, TimerMode::Repeating),
+        };
+        assert!(grid.is_tetromino_space_open(&tetromino));
+        grid.set(0, 0, true);
+        assert!(!grid.is_tetromino_space_open(&tetromino));
+    }
+
+    #[test]
+    fn test_grid_clear_full_grid_rows() {
+        let mut grid = Grid::default();
+        for i in 0..GRID_WIDTH {
+            grid.set(i, 0, true);
+        }
+        assert_eq!(grid.clear_full_grid_rows(), 1);
+        for i in 0..GRID_WIDTH {
+            assert!(!grid.get(i, 0));
+        }
     }
 }
