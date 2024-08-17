@@ -1,7 +1,7 @@
 #![allow(unused_variables)]
 #![allow(dead_code)]
 
-use super::components::{ControlledTetromino, Focus, GameOver, Grid, GridTetromino};
+use super::components::{ControlledTetromino, Focus, GameOver, Grid, GridTetromino, Score};
 use bevy::prelude::*;
 #[cfg(not(target_arch = "wasm32"))]
 use iyes_perf_ui::prelude::PerfUiCompleteBundle;
@@ -36,6 +36,23 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     commands.spawn(Camera2dBundle::default());
     #[cfg(not(target_arch = "wasm32"))]
     commands.spawn(PerfUiCompleteBundle::default());
+    commands.spawn((
+        Score(0),
+        TextBundle::from_section(
+            "Score: 0".to_string(),
+            TextStyle {
+                font: asset_server.load("fonts/JetBrainsMono-Bold.ttf"),
+                font_size: 36.0,
+                color: Color::WHITE,
+            },
+        )
+        .with_style(Style {
+            position_type: PositionType::Absolute,
+            top: Val::Px(100.0),
+            left: Val::Px(800.0),
+            ..default()
+        }),
+    ));
 }
 
 fn spawn_tetromino(
@@ -131,6 +148,7 @@ fn handle_timed_movement(
     mut grid: Query<(Entity, &mut Grid, &mut Text)>,
     mut tetromino: Query<(Entity, &GridTetromino, &mut ControlledTetromino)>,
     mut next_state: ResMut<NextState<TetrisState>>,
+    mut score: Query<(&mut Score, &mut Text), Without<Grid>>,
 ) {
     for (entity, mut grid, mut text) in &mut grid {
         for (tetromino_id, grid_owner, mut tetromino) in &mut tetromino {
@@ -142,7 +160,11 @@ fn handle_timed_movement(
             if tetromino.timer.finished() {
                 if grid.is_tetromino_at_bottom(tetromino.as_ref()) {
                     debug!("Tetromino at bottom, despawning and spawning a new one");
-                    grid.clear_full_grid_rows();
+                    let rows_cleared = grid.clear_full_grid_rows();
+                    for (mut score, mut text) in &mut score {
+                        score.add_cleared_rows(rows_cleared);
+                        text.sections[0].value = format!("Score: {}", score.get());
+                    }
                     commands.entity(tetromino_id).despawn();
                     let tetromino = ControlledTetromino::new(random_source.as_mut());
                     if grid.is_tetromino_space_open(&tetromino) {

@@ -2,6 +2,7 @@
 #![allow(clippy::module_name_repetitions)]
 #![allow(clippy::needless_pass_by_value)]
 #![allow(clippy::cast_precision_loss)]
+#![allow(clippy::too_many_arguments)]
 
 #[cfg(not(target_arch = "wasm32"))]
 use bevy::diagnostic;

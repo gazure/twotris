@@ -5,6 +5,30 @@ use std::fmt::{Display, Formatter, Result as fmtResult};
 const GRID_WIDTH: usize = 10;
 const GRID_HEIGHT: usize = 16;
 
+#[derive(Debug, Default, Component, Clone, Copy)]
+pub struct Score(pub u32);
+
+impl Score {
+    pub fn get(self) -> u32 {
+        self.0
+    }
+
+    pub fn reset(&mut self) {
+        self.0 = 0;
+    }
+
+    pub fn add_cleared_rows(&mut self, rows: u32) -> u32 {
+        self.0 += match rows {
+            1 => 40,
+            2 => 100,
+            3 => 300,
+            4 => 1200,
+            _ => 0,
+        };
+        self.0
+    }
+}
+
 #[derive(Debug, Component)]
 pub struct GameOver;
 
@@ -26,17 +50,6 @@ impl Grid {
             return;
         }
         self.grid[y][x] = val;
-    }
-
-    pub fn get(&self, x: usize, y: usize) -> bool {
-        if x >= GRID_WIDTH || y >= GRID_HEIGHT {
-            error!(
-                "Attempted to get a cell outside of the grid: ({}, {})",
-                x, y
-            );
-            return false;
-        }
-        self.grid[y][x]
     }
 
     pub fn clear(&mut self) {
@@ -302,7 +315,7 @@ mod test {
         }
         assert_eq!(grid.clear_full_grid_rows(), 1);
         for i in 0..GRID_WIDTH {
-            assert!(!grid.get(i, 0));
+            assert!(!grid.grid[0][i]);
         }
     }
 }
