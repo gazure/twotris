@@ -85,7 +85,7 @@ fn spawn_tetromino(
         let tetromino = ControlledTetromino::new(random_source.as_mut());
         grid.set_tetromino(&tetromino);
         commands.spawn((tetromino, GridTetromino::new(entity)));
-        draw_grid.send(DrawGrid(entity.clone()));
+        draw_grid.send(DrawGrid(entity));
     }
 }
 
@@ -100,11 +100,11 @@ fn swap_focus(
         debug!("Swapping focus");
         for entity in &mut focus_grid {
             commands.entity(entity).remove::<Focus>();
-            draw_grid.send(DrawGrid(entity.clone()));
+            draw_grid.send(DrawGrid(entity));
         }
         for non_focus_entity in &mut non_focus_grid {
             commands.entity(non_focus_entity).insert(Focus);
-            draw_grid.send(DrawGrid(non_focus_entity.clone()));
+            draw_grid.send(DrawGrid(non_focus_entity));
         }
     }
 }
@@ -157,7 +157,7 @@ fn handle_input(
                 }
                 grid.set_tetromino(tetromino.as_ref());
             }
-            draw_grid.send(DrawGrid(entity.clone()));
+            draw_grid.send(DrawGrid(entity));
         }
     }
 }
@@ -198,7 +198,7 @@ fn handle_timed_movement(
                     tetromino.top_left.1 += 1;
                     grid.set_tetromino(tetromino.as_ref());
                 }
-                draw_grid.send(DrawGrid(entity.clone()));
+                draw_grid.send(DrawGrid(entity));
             }
         }
     }
