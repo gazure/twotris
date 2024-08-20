@@ -215,7 +215,7 @@ fn game_over(
     commands.spawn((
         GameOver,
         TextBundle::from_section(
-            "Game Over".to_string(),
+            "Game Over\nR: Restart".to_string(),
             TextStyle {
                 font: asset_server.load("fonts/JetBrainsMono-Bold.ttf"),
                 font_size: 72.0,
