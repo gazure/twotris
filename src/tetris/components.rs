@@ -5,6 +5,27 @@ use std::fmt::{Display, Formatter, Result as fmtResult};
 const GRID_WIDTH: usize = 10;
 const GRID_HEIGHT: usize = 16;
 
+
+#[derive(Debug, Clone, Default, Event)]
+pub struct RowClearedEvent(pub u32);
+
+#[derive(Debug, Clone, Event)]
+pub struct DrawGrid(pub Entity);
+
+impl RowClearedEvent {
+    pub fn new(v: u32) -> Self {
+        RowClearedEvent(v)
+    }
+}
+
+impl From<RowClearedEvent> for u32 {
+    fn from(v: RowClearedEvent) -> u32 {
+        v.0
+    }
+}
+
+
+
 #[derive(Debug, Default, Component, Clone, Copy)]
 pub struct Score(pub u32);
 
@@ -160,6 +181,18 @@ impl Grid {
         }
         self.grid = new_grid;
         cleared_rows
+    }
+
+    pub fn set_coords_iter(&self) -> impl Iterator<Item = (usize, usize)> + '_ {
+        self.grid.iter().enumerate().flat_map(|(y, row)| {
+            row.iter().enumerate().filter_map(move |(x, &cell)| {
+                if cell {
+                    Some((x, y))
+                } else {
+                    None
+                }
+            })
+        })
     }
 }
 
