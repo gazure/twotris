@@ -47,6 +47,15 @@ impl Score {
     }
 }
 
+#[derive(Debug, Default, Component)]
+pub struct Coordinate(pub usize, pub usize);
+
+impl Coordinate {
+    pub fn tuple(&self) -> (usize, usize) {
+        (self.0, self.1)
+    }
+}
+
 #[derive(Debug, Component)]
 pub struct GameOver;
 
@@ -59,6 +68,17 @@ pub struct Grid {
 }
 
 impl Grid {
+
+    #[inline]
+    pub fn height(&self) -> usize {
+        self.grid.len()
+    }
+
+    #[inline]
+    pub fn width(&self) -> usize {
+        self.grid[0].len()
+    }
+
     pub fn set(&mut self, x: usize, y: usize, val: bool) {
         if x >= GRID_WIDTH || y >= GRID_HEIGHT {
             error!(

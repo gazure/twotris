@@ -2,7 +2,8 @@
 #![allow(dead_code)]
 
 use super::components::{
-    ControlledTetromino, DrawGrid, Focus, GameOver, Grid, GridTetromino, RowClearedEvent, Score,
+    ControlledTetromino, Coordinate, DrawGrid, Focus, GameOver, Grid, GridTetromino,
+    RowClearedEvent, Score,
 };
 use bevy::prelude::*;
 #[cfg(not(target_arch = "wasm32"))]
@@ -251,27 +252,73 @@ fn reset_grid(
     mut commands: Commands,
     mut grid: Query<(Entity, &mut Grid)>,
     mut score: Query<(&mut Score, &mut Text), Without<Grid>>,
+    mut visibile_squares: Query<&mut Visibility, With<Coordinate>>,
     asset_server: Res<AssetServer>,
 ) {
     if grid.iter().len() == 0 {
         for i in 0..2 {
             let grid = Grid::default();
+            let height = grid.height();
+            let width = grid.width();
             let grid_string = grid.to_string();
-            let sprite_bundle = SpriteBundle {
-                transform: Transform::from_xyz(-500.0 + (i as f32 * 400.0), 260.0, 1.0),
-                ..default()
-            };
-
+            let transform = Transform::from_xyz(-500.0 + (i as f32 * 400.0), 260.0, 1.0);
+            let mut entity = commands.spawn((
+                grid,
+                SpatialBundle {
+                    transform,
+                    ..default()
+                },
+            ));
             if i == 0 {
-                commands.spawn((grid, sprite_bundle, Focus));
-            } else {
-                commands.spawn((grid, sprite_bundle));
+                entity.insert(Focus);
             }
+            let color = if i == 0 {
+                Color::srgb(1.0, 0.1, 0.1)
+            } else {
+                Color::srgb(1.0, 1.0, 1.0)
+            };
+            entity.with_children(|cb| {
+                for i in 0..height {
+                    for j in 0..width {
+                        cb.spawn((
+                            Coordinate(j, i),
+                            SpriteBundle {
+                                transform: Transform::from_xyz(
+                                    j as f32 * CELL_SIZE,
+                                    i as f32 * CELL_SIZE * -1.0,
+                                    0.0,
+                                ),
+                                visibility: Visibility::Hidden,
+                                sprite: Sprite {
+                                    color: Color::srgb(0.0, 0.0, 0.0),
+                                    custom_size: Some(Vec2::splat(CELL_SIZE)),
+                                    ..default()
+                                },
+                                ..default()
+                            },
+                        ))
+                        .with_children(|cb| {
+                            cb.spawn(SpriteBundle {
+                                transform: Transform::from_xyz(0.0, 0.0, 1.0),
+                                visibility: Visibility::Inherited,
+                                sprite: Sprite {
+                                    color,
+                                    custom_size: Some(Vec2::splat(CELL_SIZE - 2.0)),
+                                    ..default()
+                                },
+                                ..default()
+                            });
+                        });
+                    }
+                }
+            });
         }
     } else {
         for (entity, mut grid) in &mut grid {
             grid.clear();
-            commands.entity(entity).despawn_descendants();
+            for mut visibility in &mut visibile_squares {
+                *visibility = Visibility::Hidden;
+            }
         }
     }
 
@@ -283,49 +330,24 @@ fn reset_grid(
 
 fn draw_grid(
     mut dg_events: EventReader<DrawGrid>,
-    mut commands: Commands,
     grid: Query<(Entity, &Grid, Option<&Focus>)>,
+    mut visible_squares: Query<(&mut Visibility, &Coordinate, &Parent)>,
 ) {
     for event in dg_events.read() {
         for (entity, grid, focus) in &grid {
             if entity != event.0 {
                 continue;
             }
-            let mut grid_entity = commands.entity(entity);
-            grid_entity.despawn_descendants();
-            let color = if focus.is_some() {
-                Color::srgb(1.0, 0.1, 0.1)
-            } else {
-                Color::srgb(1.0, 1.0, 1.0)
-            };
-
-            for coord in grid.set_coords_iter() {
-                grid_entity.with_children(|cb| {
-                    cb.spawn(SpriteBundle {
-                        transform: Transform::from_xyz(
-                            coord.0 as f32 * CELL_SIZE,
-                            coord.1 as f32 * CELL_SIZE * -1.0,
-                            0.0,
-                        ),
-                        sprite: Sprite {
-                            color: Color::srgb(0.0, 0.0, 0.0),
-                            custom_size: Some(Vec2::splat(CELL_SIZE)),
-                            ..default()
-                        },
-                        ..default()
-                    })
-                    .with_children(|cb| {
-                        cb.spawn(SpriteBundle {
-                            transform: Transform::from_xyz(0.0, 0.0, 1.0),
-                            sprite: Sprite {
-                                color,
-                                custom_size: Some(Vec2::splat(CELL_SIZE - 2.0)),
-                                ..default()
-                            },
-                            ..default()
-                        });
-                    });
-                });
+            let set_coords: Vec<_> = grid.set_coords_iter().collect();
+            for (mut visibility, coord, parent) in &mut visible_squares {
+                if parent.get() != entity {
+                    continue;
+                }
+                if set_coords.contains(&coord.tuple()) {
+                    *visibility = Visibility::Visible;
+                } else {
+                    *visibility = Visibility::Hidden;
+                }
             }
         }
     }
