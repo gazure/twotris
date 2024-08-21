@@ -68,7 +68,6 @@ pub struct Grid {
 }
 
 impl Grid {
-
     #[inline]
     pub fn height(&self) -> usize {
         self.grid.len()
