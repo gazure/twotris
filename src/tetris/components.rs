@@ -47,7 +47,7 @@ impl Score {
     }
 }
 
-#[derive(Debug, Default, Component)]
+#[derive(Debug, Default, Component, Reflect)]
 pub struct Coordinate(pub usize, pub usize);
 
 impl Coordinate {
@@ -183,6 +183,20 @@ impl Grid {
         false
     }
 
+    pub fn controlled_tetromino_shadow(&self, tetromino: &ControlledTetromino) -> ControlledTetromino {
+        let mut shadow = tetromino.clone();
+        while !self.is_tetromino_at_bottom(&shadow) {
+            shadow.top_left.1 += 1;
+        }
+        shadow
+    }
+
+    pub fn force_tetromino_to_bottom(&mut self, tetromino: &mut ControlledTetromino) {
+        while !self.is_tetromino_at_bottom(tetromino) {
+            tetromino.top_left.1 += 1;
+        }
+    }
+
     pub fn clear_full_grid_rows(&mut self) -> u32 {
         let mut cleared_rows = 0;
         let mut new_grid = [[false; GRID_WIDTH]; GRID_HEIGHT];
@@ -296,6 +310,9 @@ impl TetrominoType {
 }
 
 #[derive(Debug, Component)]
+pub struct Shadow;
+
+#[derive(Debug, Component)]
 pub struct GridTetromino(Entity);
 
 impl GridTetromino {
@@ -309,12 +326,27 @@ impl GridTetromino {
 }
 
 #[derive(Debug, Component)]
+pub struct TetrominoTimer(pub Timer);
+
+impl TetrominoTimer {
+    pub fn new() -> Self {
+        Self(Timer::from_seconds(1.0, TimerMode::Repeating))
+    }
+}
+
+impl Default for TetrominoTimer {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+#[derive(Debug, Clone,  Component)]
 pub struct ControlledTetromino {
     pub structure: Vec<Vec<Vec<bool>>>,
     pub rotation: usize,
     pub top_left: (usize, usize),
-    pub timer: Timer,
 }
+
 
 impl ControlledTetromino {
     pub fn new(rng: &mut RandomSource) -> Self {
@@ -326,7 +358,6 @@ impl ControlledTetromino {
             structure: tetromino_type.structure_with_rotations(),
             rotation: 0,
             top_left: ((GRID_WIDTH / 2) - 1, 0),
-            timer: Timer::from_seconds(1.0, TimerMode::Repeating),
         }
     }
 
@@ -336,6 +367,18 @@ impl ControlledTetromino {
 
     pub fn rotate(&mut self) {
         self.rotation = (self.rotation + 1) % self.structure.len();
+    }
+
+    pub fn coords(&self) -> impl Iterator<Item = (usize, usize)> + '_ {
+        self.structure[self.rotation].iter().enumerate().flat_map(move |(y, row)| {
+            row.iter().enumerate().filter_map(move |(x, &cell)| {
+                if cell {
+                    Some((x + self.top_left.0, y + self.top_left.1))
+                } else {
+                    None
+                }
+            })
+        })
     }
 }
 
@@ -350,8 +393,7 @@ mod test {
         let tetromino = ControlledTetromino {
             structure: vec![vec![vec![true]]],
             rotation: 0,
-            top_left: (0, 0),
-            timer: Timer::from_seconds(1.0, TimerMode::Repeating),
+            top_left: (0, 0)
         };
         assert!(grid.is_tetromino_space_open(&tetromino));
         grid.set(0, 0, true);

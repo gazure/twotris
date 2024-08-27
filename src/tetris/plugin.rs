@@ -1,9 +1,6 @@
-#![allow(unused_variables)]
-#![allow(dead_code)]
-
-use super::components::{
+use crate::tetris::components::{
     ControlledTetromino, Coordinate, DrawGrid, Focus, GameOver, Grid, GridTetromino,
-    RowClearedEvent, Score,
+    RowClearedEvent, Score, Shadow,
 };
 use bevy::prelude::*;
 #[cfg(not(target_arch = "wasm32"))]
@@ -11,7 +8,11 @@ use iyes_perf_ui::prelude::PerfUiCompleteBundle;
 use rand::{Rng, SeedableRng};
 use tracing::debug;
 
-const NON_FOCUS_COLOR: Color = Color::linear_rgba(1.0, 0.1, 0.1, 0.9);
+use super::components::TetrominoTimer;
+
+const FOCUS_COLOR: Color = Color::linear_rgba(1.0, 1.0, 1.0, 1.0);
+const NON_FOCUS_COLOR: Color = Color::linear_rgba(0.5, 0.5, 0.5, 1.0);
+const SHADOW_COLOR: Color = Color::linear_rgba(0.0, 0.0, 0.0, 0.1);
 const CELL_SIZE: f32 = 20.0;
 
 #[derive(States, Default, Debug, Clone, PartialEq, Eq, Hash)]
@@ -75,7 +76,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     }),));
 }
 
-fn spawn_tetromino(
+fn init_spawn_tetrominos(
     mut commands: Commands,
     mut random_source: ResMut<RandomSource>,
     mut grid_query: Query<(Entity, &mut Grid)>,
@@ -85,7 +86,9 @@ fn spawn_tetromino(
         debug!("Spawning a tetromino");
         let tetromino = ControlledTetromino::new(random_source.as_mut());
         grid.set_tetromino(&tetromino);
-        commands.spawn((tetromino, GridTetromino::new(entity)));
+        let shadow = grid.controlled_tetromino_shadow(&tetromino);
+        commands.spawn((shadow, Shadow, GridTetromino::new(entity)));
+        commands.spawn((TetrominoTimer::default(), tetromino, GridTetromino::new(entity)));
         draw_grid.send(DrawGrid(entity));
     }
 }
@@ -113,7 +116,8 @@ fn swap_focus(
 fn handle_input(
     input: Res<ButtonInput<KeyCode>>,
     mut grid: Query<(Entity, &mut Grid), With<Focus>>,
-    mut tetromino: Query<(&GridTetromino, &mut ControlledTetromino)>,
+    mut tetromino: Query<(&GridTetromino, &mut ControlledTetromino), Without<Shadow>>,
+    mut shadows: Query<(&GridTetromino, &mut ControlledTetromino), With<Shadow>>,
     mut draw_grid: EventWriter<DrawGrid>,
 ) {
     for (entity, mut grid) in &mut grid {
@@ -121,6 +125,7 @@ fn handle_input(
             if grid_owner.get() != entity {
                 continue;
             }
+            let shadow = shadows.iter_mut().find(|(shadow_owner, _)| shadow_owner.get() == entity);
 
             if input.just_pressed(KeyCode::ArrowLeft) && !grid.is_tetromino_blocked_left(&tetromino)
             {
@@ -139,15 +144,6 @@ fn handle_input(
                 grid.set_tetromino(tetromino.as_ref());
             }
 
-            if input.just_pressed(KeyCode::ArrowDown)
-                && !grid.is_tetromino_at_bottom(tetromino.as_ref())
-            {
-                debug!("Moving tetromino down");
-                grid.unset_tetromino(tetromino.as_ref());
-                tetromino.top_left.1 += 1;
-                grid.set_tetromino(tetromino.as_ref());
-            }
-
             if input.just_pressed(KeyCode::Space) {
                 debug!("Rotating tetromino");
                 let old_rotation = tetromino.rotation;
@@ -158,6 +154,11 @@ fn handle_input(
                 }
                 grid.set_tetromino(tetromino.as_ref());
             }
+
+            if let Some((_, mut shadow)) = shadow {
+                *shadow = grid.controlled_tetromino_shadow(tetromino.as_ref());
+            }
+
             draw_grid.send(DrawGrid(entity));
         }
     }
@@ -165,23 +166,29 @@ fn handle_input(
 
 fn handle_timed_movement(
     mut commands: Commands,
-    input: Res<ButtonInput<KeyCode>>,
     time: Res<Time>,
+    input: Res<ButtonInput<KeyCode>>,
     mut random_source: ResMut<RandomSource>,
-    mut grid: Query<(Entity, &mut Grid)>,
-    mut tetromino: Query<(Entity, &GridTetromino, &mut ControlledTetromino)>,
+    mut grid: Query<(Entity, &mut Grid, Option<&Focus>)>,
+    mut tetromino: Query<(Entity, &GridTetromino, &mut ControlledTetromino, &mut TetrominoTimer)>,
     mut next_state: ResMut<NextState<TetrisState>>,
     mut rows_cleared: EventWriter<RowClearedEvent>,
     mut draw_grid: EventWriter<DrawGrid>,
 ) {
-    for (entity, mut grid) in &mut grid {
-        for (tetromino_id, grid_owner, mut tetromino) in &mut tetromino {
+    for (entity, mut grid, focus) in &mut grid {
+        for (tetromino_id, grid_owner, mut tetromino, mut timer) in &mut tetromino {
             if grid_owner.get() != entity {
                 continue;
             }
-            tetromino.timer.tick(time.delta());
+            timer.0.tick(time.delta());
+            let should_force_to_bottom = input.just_pressed(KeyCode::ArrowDown) && focus.is_some();
+            if should_force_to_bottom {
+                grid.unset_tetromino(tetromino.as_ref());
+                grid.force_tetromino_to_bottom(tetromino.as_mut());
+                grid.set_tetromino(tetromino.as_ref());
+            }
 
-            if tetromino.timer.finished() {
+            if timer.0.finished() || should_force_to_bottom {
                 if grid.is_tetromino_at_bottom(tetromino.as_ref()) {
                     debug!("Tetromino at bottom, despawning and spawning a new one");
                     rows_cleared.send(RowClearedEvent::new(grid.clear_full_grid_rows()));
@@ -189,7 +196,7 @@ fn handle_timed_movement(
                     let tetromino = ControlledTetromino::new(random_source.as_mut());
                     if grid.is_tetromino_space_open(&tetromino) {
                         grid.set_tetromino(&tetromino);
-                        commands.spawn((tetromino, GridTetromino::new(entity)));
+                        commands.spawn((TetrominoTimer::default(), tetromino, GridTetromino::new(entity)));
                     } else {
                         next_state.set(TetrisState::GameOver);
                     }
@@ -250,33 +257,26 @@ fn reset(
 
 fn reset_grid(
     mut commands: Commands,
-    mut grid: Query<(Entity, &mut Grid)>,
+    _asset_server: Res<AssetServer>,
+    mut grid: Query<&mut Grid>,
     mut score: Query<(&mut Score, &mut Text), Without<Grid>>,
     mut visibile_squares: Query<&mut Visibility, With<Coordinate>>,
-    asset_server: Res<AssetServer>,
 ) {
     if grid.iter().len() == 0 {
         for i in 0..2 {
             let grid = Grid::default();
             let height = grid.height();
             let width = grid.width();
-            let grid_string = grid.to_string();
-            let transform = Transform::from_xyz(-500.0 + (i as f32 * 400.0), 260.0, 1.0);
             let mut entity = commands.spawn((
                 grid,
                 SpatialBundle {
-                    transform,
+                    transform: Transform::from_xyz(-500.0 + (i as f32 * 400.0), 260.0, 0.0),
                     ..default()
                 },
             ));
             if i == 0 {
                 entity.insert(Focus);
             }
-            let color = if i == 0 {
-                Color::srgb(1.0, 0.1, 0.1)
-            } else {
-                Color::srgb(1.0, 1.0, 1.0)
-            };
             entity.with_children(|cb| {
                 for i in 0..height {
                     for j in 0..width {
@@ -286,35 +286,37 @@ fn reset_grid(
                                 transform: Transform::from_xyz(
                                     j as f32 * CELL_SIZE,
                                     i as f32 * CELL_SIZE * -1.0,
-                                    0.0,
+                                    2.0,
                                 ),
                                 visibility: Visibility::Hidden,
                                 sprite: Sprite {
-                                    color: Color::srgb(0.0, 0.0, 0.0),
-                                    custom_size: Some(Vec2::splat(CELL_SIZE)),
+                                    color: FOCUS_COLOR,
+                                    custom_size: Some(Vec2::splat(CELL_SIZE - 2.0)),
                                     ..default()
                                 },
                                 ..default()
                             },
                         ))
                         .with_children(|cb| {
-                            cb.spawn(SpriteBundle {
-                                transform: Transform::from_xyz(0.0, 0.0, 1.0),
-                                visibility: Visibility::Inherited,
-                                sprite: Sprite {
-                                    color,
-                                    custom_size: Some(Vec2::splat(CELL_SIZE - 2.0)),
+                            cb.spawn((
+                                SpriteBundle {
+                                    transform: Transform::from_xyz(0.0, 0.0, -1.0),
+                                    visibility: Visibility::Inherited,
+                                    sprite: Sprite {
+                                        color: Color::srgb(0.0, 0.0, 0.0),
+                                        custom_size: Some(Vec2::splat(CELL_SIZE)),
+                                        ..default()
+                                    },
                                     ..default()
                                 },
-                                ..default()
-                            });
+                            ));
                         });
                     }
                 }
             });
         }
     } else {
-        for (entity, mut grid) in &mut grid {
+        for mut grid in &mut grid {
             grid.clear();
             for mut visibility in &mut visibile_squares {
                 *visibility = Visibility::Hidden;
@@ -331,22 +333,38 @@ fn reset_grid(
 fn draw_grid(
     mut dg_events: EventReader<DrawGrid>,
     grid: Query<(Entity, &Grid, Option<&Focus>)>,
-    mut visible_squares: Query<(&mut Visibility, &Coordinate, &Parent)>,
+    mut visible_squares: Query<(&mut Visibility, &mut Sprite, &Coordinate, &Parent)>,
+    shadows: Query<(&ControlledTetromino, &GridTetromino), With<Shadow>>,
 ) {
     for event in dg_events.read() {
         for (entity, grid, focus) in &grid {
             if entity != event.0 {
                 continue;
             }
+            let shadow_coords: Vec<_> = if let Some((shadow, _)) = shadows.iter().find(|(_, gt)| gt.get() == entity) {
+                shadow.coords().collect()
+            } else {
+                vec![]
+            };
             let set_coords: Vec<_> = grid.set_coords_iter().collect();
-            for (mut visibility, coord, parent) in &mut visible_squares {
+            for (mut visibility, mut sprite, coord, parent) in &mut visible_squares {
                 if parent.get() != entity {
                     continue;
                 }
+                let is_shadow = shadow_coords.contains(&coord.tuple());
+                let color = if focus.is_some() { FOCUS_COLOR} else {NON_FOCUS_COLOR};
+
+                if shadow_coords.contains(&coord.tuple()) {
+                    *visibility = Visibility::Visible;
+                    sprite.color = SHADOW_COLOR;
+                }
+
                 if set_coords.contains(&coord.tuple()) {
                     *visibility = Visibility::Visible;
-                } else {
+                    sprite.color = color;
+                } else if !is_shadow {
                     *visibility = Visibility::Hidden;
+                    sprite.color = color;
                 }
             }
         }
@@ -376,7 +394,7 @@ impl Plugin for TetrisPlugin {
             .add_systems(Startup, setup)
             .add_systems(
                 OnEnter(TetrisState::InGame),
-                (reset_grid, spawn_tetromino).chain(),
+                (reset_grid, init_spawn_tetrominos).chain(),
             )
             .add_systems(
                 Update,

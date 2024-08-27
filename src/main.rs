@@ -13,6 +13,7 @@ use bevy::prelude::*;
 use bevy_inspector_egui::quick::WorldInspectorPlugin;
 #[cfg(not(target_arch = "wasm32"))]
 use iyes_perf_ui::PerfUiPlugin;
+use crate::tetris::components;
 
 mod tetris;
 
@@ -22,9 +23,11 @@ fn main() {
         .add_plugins(tetris::TetrisPlugin);
 
     #[cfg(not(target_arch = "wasm32"))]
-    app.add_plugins(
-        WorldInspectorPlugin::default().run_if(input_toggle_active(false, KeyCode::Backquote)),
-    )
+    {
+        app.add_plugins(
+            WorldInspectorPlugin::default().run_if(input_toggle_active(false, KeyCode::Backquote)),
+        ).register_type::<components::Coordinate>()
+    }
     .add_plugins(diagnostic::FrameTimeDiagnosticsPlugin)
     .add_plugins(diagnostic::EntityCountDiagnosticsPlugin)
     .add_plugins(diagnostic::SystemInformationDiagnosticsPlugin)
