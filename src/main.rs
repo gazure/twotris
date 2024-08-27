@@ -4,6 +4,7 @@
 #![allow(clippy::cast_precision_loss)]
 #![allow(clippy::too_many_arguments)]
 
+use crate::tetris::components;
 #[cfg(not(target_arch = "wasm32"))]
 use bevy::diagnostic;
 #[cfg(not(target_arch = "wasm32"))]
@@ -13,7 +14,6 @@ use bevy::prelude::*;
 use bevy_inspector_egui::quick::WorldInspectorPlugin;
 #[cfg(not(target_arch = "wasm32"))]
 use iyes_perf_ui::PerfUiPlugin;
-use crate::tetris::components;
 
 mod tetris;
 
@@ -26,7 +26,8 @@ fn main() {
     {
         app.add_plugins(
             WorldInspectorPlugin::default().run_if(input_toggle_active(false, KeyCode::Backquote)),
-        ).register_type::<components::Coordinate>()
+        )
+        .register_type::<components::Coordinate>()
     }
     .add_plugins(diagnostic::FrameTimeDiagnosticsPlugin)
     .add_plugins(diagnostic::EntityCountDiagnosticsPlugin)

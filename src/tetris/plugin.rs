@@ -88,7 +88,11 @@ fn init_spawn_tetrominos(
         grid.set_tetromino(&tetromino);
         let shadow = grid.controlled_tetromino_shadow(&tetromino);
         commands.spawn((shadow, Shadow, GridTetromino::new(entity)));
-        commands.spawn((TetrominoTimer::default(), tetromino, GridTetromino::new(entity)));
+        commands.spawn((
+            TetrominoTimer::default(),
+            tetromino,
+            GridTetromino::new(entity),
+        ));
         draw_grid.send(DrawGrid(entity));
     }
 }
@@ -125,7 +129,9 @@ fn handle_input(
             if grid_owner.get() != entity {
                 continue;
             }
-            let shadow = shadows.iter_mut().find(|(shadow_owner, _)| shadow_owner.get() == entity);
+            let shadow = shadows
+                .iter_mut()
+                .find(|(shadow_owner, _)| shadow_owner.get() == entity);
 
             if input.just_pressed(KeyCode::ArrowLeft) && !grid.is_tetromino_blocked_left(&tetromino)
             {
@@ -170,7 +176,12 @@ fn handle_timed_movement(
     input: Res<ButtonInput<KeyCode>>,
     mut random_source: ResMut<RandomSource>,
     mut grid: Query<(Entity, &mut Grid, Option<&Focus>)>,
-    mut tetromino: Query<(Entity, &GridTetromino, &mut ControlledTetromino, &mut TetrominoTimer)>,
+    mut tetromino: Query<(
+        Entity,
+        &GridTetromino,
+        &mut ControlledTetromino,
+        &mut TetrominoTimer,
+    )>,
     mut next_state: ResMut<NextState<TetrisState>>,
     mut rows_cleared: EventWriter<RowClearedEvent>,
     mut draw_grid: EventWriter<DrawGrid>,
@@ -196,7 +207,11 @@ fn handle_timed_movement(
                     let tetromino = ControlledTetromino::new(random_source.as_mut());
                     if grid.is_tetromino_space_open(&tetromino) {
                         grid.set_tetromino(&tetromino);
-                        commands.spawn((TetrominoTimer::default(), tetromino, GridTetromino::new(entity)));
+                        commands.spawn((
+                            TetrominoTimer::default(),
+                            tetromino,
+                            GridTetromino::new(entity),
+                        ));
                     } else {
                         next_state.set(TetrisState::GameOver);
                     }
@@ -298,18 +313,16 @@ fn reset_grid(
                             },
                         ))
                         .with_children(|cb| {
-                            cb.spawn((
-                                SpriteBundle {
-                                    transform: Transform::from_xyz(0.0, 0.0, -1.0),
-                                    visibility: Visibility::Inherited,
-                                    sprite: Sprite {
-                                        color: Color::srgb(0.0, 0.0, 0.0),
-                                        custom_size: Some(Vec2::splat(CELL_SIZE)),
-                                        ..default()
-                                    },
+                            cb.spawn((SpriteBundle {
+                                transform: Transform::from_xyz(0.0, 0.0, -1.0),
+                                visibility: Visibility::Inherited,
+                                sprite: Sprite {
+                                    color: Color::srgb(0.0, 0.0, 0.0),
+                                    custom_size: Some(Vec2::splat(CELL_SIZE)),
                                     ..default()
                                 },
-                            ));
+                                ..default()
+                            },));
                         });
                     }
                 }
@@ -341,18 +354,23 @@ fn draw_grid(
             if entity != event.0 {
                 continue;
             }
-            let shadow_coords: Vec<_> = if let Some((shadow, _)) = shadows.iter().find(|(_, gt)| gt.get() == entity) {
-                shadow.coords().collect()
-            } else {
-                vec![]
-            };
+            let shadow_coords: Vec<_> =
+                if let Some((shadow, _)) = shadows.iter().find(|(_, gt)| gt.get() == entity) {
+                    shadow.coords().collect()
+                } else {
+                    vec![]
+                };
             let set_coords: Vec<_> = grid.set_coords_iter().collect();
             for (mut visibility, mut sprite, coord, parent) in &mut visible_squares {
                 if parent.get() != entity {
                     continue;
                 }
                 let is_shadow = shadow_coords.contains(&coord.tuple());
-                let color = if focus.is_some() { FOCUS_COLOR} else {NON_FOCUS_COLOR};
+                let color = if focus.is_some() {
+                    FOCUS_COLOR
+                } else {
+                    NON_FOCUS_COLOR
+                };
 
                 if shadow_coords.contains(&coord.tuple()) {
                     *visibility = Visibility::Visible;

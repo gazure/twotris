@@ -183,7 +183,10 @@ impl Grid {
         false
     }
 
-    pub fn controlled_tetromino_shadow(&self, tetromino: &ControlledTetromino) -> ControlledTetromino {
+    pub fn controlled_tetromino_shadow(
+        &self,
+        tetromino: &ControlledTetromino,
+    ) -> ControlledTetromino {
         let mut shadow = tetromino.clone();
         while !self.is_tetromino_at_bottom(&shadow) {
             shadow.top_left.1 += 1;
@@ -340,13 +343,12 @@ impl Default for TetrominoTimer {
     }
 }
 
-#[derive(Debug, Clone,  Component)]
+#[derive(Debug, Clone, Component)]
 pub struct ControlledTetromino {
     pub structure: Vec<Vec<Vec<bool>>>,
     pub rotation: usize,
     pub top_left: (usize, usize),
 }
-
 
 impl ControlledTetromino {
     pub fn new(rng: &mut RandomSource) -> Self {
@@ -370,15 +372,18 @@ impl ControlledTetromino {
     }
 
     pub fn coords(&self) -> impl Iterator<Item = (usize, usize)> + '_ {
-        self.structure[self.rotation].iter().enumerate().flat_map(move |(y, row)| {
-            row.iter().enumerate().filter_map(move |(x, &cell)| {
-                if cell {
-                    Some((x + self.top_left.0, y + self.top_left.1))
-                } else {
-                    None
-                }
+        self.structure[self.rotation]
+            .iter()
+            .enumerate()
+            .flat_map(move |(y, row)| {
+                row.iter().enumerate().filter_map(move |(x, &cell)| {
+                    if cell {
+                        Some((x + self.top_left.0, y + self.top_left.1))
+                    } else {
+                        None
+                    }
+                })
             })
-        })
     }
 }
 
@@ -393,7 +398,7 @@ mod test {
         let tetromino = ControlledTetromino {
             structure: vec![vec![vec![true]]],
             rotation: 0,
-            top_left: (0, 0)
+            top_left: (0, 0),
         };
         assert!(grid.is_tetromino_space_open(&tetromino));
         grid.set(0, 0, true);
